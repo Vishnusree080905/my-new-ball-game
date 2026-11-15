@@ -1,0 +1,6 @@
+{
+  "appId": "com.ballbattle.studio",
+  "appName": "Ball Battle Studio",
+  "webDir": "www",
+  "android": { "allowMixedContent": false }
+}

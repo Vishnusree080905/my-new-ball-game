@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ball Battle Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#070914;--panel:rgba(255,255,255,.07);--line:rgba(255,255,255,.17);--tx:#fff;--mut:#a9b0d0;--gold:#ffc83d;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#070914}}
+:root[data-theme="dark"]{--bg:#070914}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 10% 0,#3a0f22 0,transparent 60%),radial-gradient(900px 500px at 100% 40%,#10205a 0,transparent 60%),var(--bg);color:var(--tx);font-family:Poppins,system-ui,sans-serif;min-height:100vh}
+.wrap{max-width:480px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:22px;margin:0 0 4px;font-weight:800}
+p.s{color:var(--mut);font-size:13px;margin:0 0 16px}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+label{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
+label.ck{display:flex;gap:8px;align-items:center;color:var(--tx);font-size:13px;margin-top:12px}
+input[type=text],input[type=number]{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--tx);border-radius:9px;padding:9px 10px;font:inherit;font-size:14px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.row{display:flex;gap:8px;align-items:center}.row>*{flex:1}
+.ball{display:flex;gap:10px;align-items:flex-start}
+.av{width:64px;height:64px;border-radius:50%;border:3px solid;flex:none;background:#111 center/cover;cursor:pointer;display:grid;place-items:center;font-size:11px;color:var(--mut);text-align:center;overflow:hidden}
+.ball .f{flex:1;min-width:0}
+button{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--line);background:rgba(255,255,255,.1);color:var(--tx);border-radius:9px;padding:8px 10px;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+button.go{width:100%;background:linear-gradient(90deg,#ff4d5a,#ff8a3d);border:0;font-size:16px;padding:14px;margin-top:6px}
+button.sm{padding:5px 8px;font-size:12px;flex:none}
+input[type=color]{width:40px;height:34px;border:0;background:none;padding:0;flex:none}
+.snd{font-size:11px;color:var(--mut);margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+#game{display:none;max-width:480px;margin:0 auto;padding:10px 12px 24px}
+canvas{width:auto;max-width:100%;max-height:78vh;margin:0 auto;display:block;border-radius:14px;background:#05060f}
+#rs{font-size:13px;color:var(--mut);text-align:center;margin-top:10px;min-height:20px}
+#dl{background:linear-gradient(90deg,#3ddc97,#4d8dff);border:0}
+</style></head><body>
+<div class="wrap" id="setup">
+<h1>Ball Battle Studio</h1>
+<p class="s">Set up your fighters, text, and sounds, then press Start.</p>
+<div class="box">
+<label for="title">Title (leave blank to auto-build from ball names)</label><input type="text" id="title" placeholder="e.g. Türkiye vs USA">
+<label for="kick">Small label above title</label><input type="text" id="kick" value="BALL BATTLE">
+<label for="l1">Line 1</label><input type="text" id="l1" value="Every wall bounce = +1 DMG">
+<label for="l2">Line 2</label><input type="text" id="l2" value="Hit your rival = unleash it ALL">
+<label for="bot">Text under arena</label><input type="text" id="bot" value="Pick a side &amp; comment!">
+<label for="wf">Winner screen footer</label><input type="text" id="wf" value="Who fights next? Comment below">
+<div class="row"><div><label for="hp">Starting HP</label><input type="number" id="hp" value="100" min="10" max="2000"></div>
+<div><label for="lim">Hit limit (max damage)</label><input type="number" id="lim" value="250" min="1" max="999"></div>
+<div><label for="spd">Ball speed</label><input type="number" id="spd" value="6" min="2" max="14"></div></div>
+<label class="ck"><input type="checkbox" id="rec" checked> Record the battle card automatically</label>
+</div>
+<div id="list"></div>
+<div class="row" style="margin-bottom:10px"><button id="add">+ Add ball</button><button id="test">Test default sound</button><button id="tt">Test wall tap</button></div>
+<button class="go" id="start">Start battle</button>
+</div>
+
+<div id="game">
+<canvas id="cv" width="720" height="1280"></canvas>
+<div id="rs"></div>
+<div class="row" style="margin-top:8px"><button id="back">Edit setup</button><button id="re">Restart</button><button id="dl" hidden>Save video</button></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),COL=['#ff4d5a','#4d8dff','#3ddc97','#ffc83d','#b66dff','#ff8a3d'];
+const mk=i=>({name:'Player '+(i+1),color:COL[i%6],img:null,url:'',buf:null,sn:'',wbuf:null,wsn:''});
+let balls=[mk(0),mk(1)];balls[0].name='Türkiye';balls[1].name='USA';
+const rnd=(a,b)=>a+Math.random()*(b-a);
+/* ---------- audio (everything routes through MG so it can be recorded) ---------- */
+let AC,MG,MD,NB;
+function ac(){if(!AC){AC=new(window.AudioContext||window.webkitAudioContext)();MG=AC.createGain();MG.connect(AC.destination);MD=AC.createMediaStreamDestination();MG.connect(MD)}if(AC.state==='suspended')AC.resume();return AC}
+function tone(f,d,ty,v){const c=ac(),o=c.createOscillator(),g=c.createGain();o.type=ty;o.frequency.value=f;g.gain.setValueAtTime(v,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d);o.connect(g).connect(MG);o.start();o.stop(c.currentTime+d)}
+function tap(){const c=ac(),t=c.currentTime,o=c.createOscillator(),g=c.createGain();
+o.frequency.setValueAtTime(rnd(240,290),t);o.frequency.exponentialRampToValueAtTime(85,t+.07);g.gain.setValueAtTime(.4,t);g.gain.exponentialRampToValueAtTime(.001,t+.1);o.connect(g).connect(MG);o.start(t);o.stop(t+.11);
+if(!NB){NB=c.createBuffer(1,Math.floor(c.sampleRate*.02),c.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length)}
+const s=c.createBufferSource(),f=c.createBiquadFilter(),g2=c.createGain();s.buffer=NB;f.type='highpass';f.frequency.value=1400;g2.gain.value=.3;s.connect(f).connect(g2).connect(MG);s.start(t)}
+const PL={};
+function playBuf(buf,key,max){if(!buf)return;const c=ac(),o=PL[key||'x'];if(o){try{o.g.gain.setTargetAtTime(0,c.currentTime,.01);o.s.stop(c.currentTime+.06)}catch(e){}}
+const s=c.createBufferSource(),g=c.createGain();s.buffer=buf;s.connect(g).connect(MG);s.start();s.stop(c.currentTime+(max||15));PL[key||'x']={s,g}}
+function fanfare(){[523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>{tone(f,.45,'triangle',.22);tone(f/2,.45,'sine',.12)},i*150));setTimeout(()=>{tone(1046,1,'triangle',.18);tone(784,1,'triangle',.14);tone(659,1,'sine',.12)},800)}
+function hitSnd(b,i,dmg){if(b.buf){playBuf(b.buf,'h'+i,3)}else{const f=200+i*80+Math.min(dmg,250)*2.2;tone(f,.16,'square',.1);tone(f/2,.24,'sine',.25)}}
+/* ---------- setup UI ---------- */
+function render(){const L=$('#list');L.innerHTML='';balls.forEach((b,i)=>{const d=document.createElement('div');d.className='box ball';
+d.innerHTML=`<div class="av" tabindex="0" role="button" aria-label="Ball photo">${b.url?'':'Add photo'}</div><div class="f"><div class="row"><input type="text" aria-label="Name"><input type="color" value="${b.color}" aria-label="Color"><button class="sm rm">Remove</button></div><div class="snd"><button class="sm up">Hit sound</button><button class="sm pl">Play</button><button class="sm cl">Default</button><span></span></div><div class="snd"><button class="sm wu">Winner sound</button><button class="sm wp">Play</button><button class="sm wc">Default</button><span></span></div></div>`;
+const av=d.querySelector('.av');av.style.borderColor=b.color;if(b.url)av.style.backgroundImage=`url(${b.url})`;d.querySelector('.snd span').textContent=b.sn||'Default sound';d.querySelectorAll('.snd span')[1].textContent=b.wsn||'Default winning sound';
+const nm=d.querySelector('input[type=text]');nm.value=b.name;nm.oninput=()=>b.name=nm.value;
+d.querySelector('input[type=color]').oninput=e=>{b.color=e.target.value;av.style.borderColor=b.color};
+const pick=()=>file('image/*',f=>{b.url=URL.createObjectURL(f);b.img=new Image();b.img.src=b.url;render()});av.onclick=pick;av.onkeydown=e=>{if(e.key==='Enter')pick()};
+d.querySelector('.up').onclick=()=>file('audio/*',async f=>{try{b.buf=await ac().decodeAudioData(await f.arrayBuffer());b.sn=f.name;render()}catch(e){alert('That audio file could not be read. Try an MP3 or WAV.')}});
+d.querySelector('.pl').onclick=()=>hitSnd(b,i,60);d.querySelector('.wu').onclick=()=>file('audio/*',async f=>{try{b.wbuf=await ac().decodeAudioData(await f.arrayBuffer());b.wsn=f.name;render()}catch(e){alert('That audio file could not be read. Try an MP3 or WAV.')}});d.querySelector('.wp').onclick=()=>b.wbuf?playBuf(b.wbuf):fanfare();d.querySelector('.wc').onclick=()=>{b.wbuf=null;b.wsn='';render()};d.querySelector('.cl').onclick=()=>{b.buf=null;b.sn='';render()};
+const rm=d.querySelector('.rm');rm.disabled=balls.length<=2;rm.onclick=()=>{balls.splice(i,1);render()};L.appendChild(d)});$('#add').disabled=balls.length>=6}
+function file(acc,cb){const i=document.createElement('input');i.type='file';i.accept=acc;i.onchange=()=>i.files[0]&&cb(i.files[0]);i.click()}
+$('#add').onclick=()=>{balls.push(mk(balls.length));render()};$('#test').onclick=()=>hitSnd({},0,60);$('#tt').onclick=tap;render();
+/* ---------- game ---------- */
+const cv=$('#cv'),x=cv.getContext('2d'),CW=720,W=560,R=270,BR=28,S=640/W;let G,raf,rec,blob,ext='webm';
+const bounce=t=>{const n=7.5625,d=2.75;if(t<1/d)return n*t*t;if(t<2/d)return n*(t-=1.5/d)*t+.75;if(t<2.5/d)return n*(t-=2.25/d)*t+.9375;return n*(t-=2.625/d)*t+.984375};
+function fit(s,px,wt,w){do{x.font=`${wt} ${px}px Poppins,sans-serif`;px-=2}while(x.measureText(s).width>w&&px>12);return px+2}
+function trunc(s,w){while(x.measureText(s).width>w&&s.length>1)s=s.slice(0,-1);return s}
+function av(b,cx,cy,r){x.save();x.beginPath();x.arc(cx,cy,r,0,6.283);x.clip();x.fillStyle=b.color;x.fillRect(cx-r,cy-r,2*r,2*r);
+if(b.img&&b.img.complete&&b.img.naturalWidth){const s=Math.min(b.img.naturalWidth,b.img.naturalHeight);x.drawImage(b.img,(b.img.naturalWidth-s)/2,(b.img.naturalHeight-s)/2,s,s,cx-r,cy-r,2*r,2*r)}
+else{x.fillStyle='#fff';x.font=`800 ${r*1.1}px Poppins,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText((b.name[0]||'?').toUpperCase(),cx,cy+r*.06)}
+x.restore();x.strokeStyle='#fff';x.lineWidth=Math.max(2,r*.09);x.beginPath();x.arc(cx,cy,r,0,6.283);x.stroke()}
+function T(s,px,py,font,col,glow){x.font=font;x.fillStyle=col;x.textAlign='center';x.textBaseline='middle';x.shadowColor=glow||'transparent';x.shadowBlur=glow?22:0;x.fillText(s,px,py);x.shadowBlur=0}
+async function begin(){ac();stopRec(true);Object.values(PL).forEach(o=>{try{o.s.stop()}catch(e){}});try{await Promise.all([document.fonts.load('800 20px Poppins'),document.fonts.load('700 20px Poppins')])}catch(e){}
+const c={hp:Math.max(10,+$('#hp').value||100),lim:Math.max(1,+$('#lim').value||250),spd:Math.min(14,Math.max(2,+$('#spd').value||6))};
+$('#setup').style.display='none';$('#game').style.display='block';$('#dl').hidden=true;blob=null;
+const n=balls.length,cols=n<=3?n:Math.ceil(n/2),rows=Math.ceil(n/cols),cw=(CW-32-(cols-1)*12)/cols,ch=78,hy=200,hh=rows*ch+(rows-1)*12,aT=hy+hh+24,bY=aT+640+34,CH=1280,oy=Math.max(0,Math.floor((1280-(aT+640+74))/2));
+cv.width=CW;cv.height=CH;const tv=$('#title').value.trim();
+G={c,CW,CH,cols,cw,ch,oy,hy:hy+oy,aT:aT+oy,bY:bY+oy,ph:'count',t0:performance.now(),last:performance.now(),bp:-1,over:false,fl:[],pa:[],cf:[],cd:{},lt:0,
+seg:tv?[{t:tv,c:'#fff'}]:balls.flatMap((b,i)=>(i?[{t:' vs ',c:'#fff'}]:[]).concat([{t:b.name,c:b.color,g:1}])),
+txt:{k:$('#kick').value,a:$('#l1').value,b:$('#l2').value,bot:$('#bot').value,wf:$('#wf').value},
+b:balls.map((b,i)=>{const th=Math.PI+i*6.283/n;return{...b,i,th,r0:R*1.55,r1:R*.72,x:0,y:0,vx:0,vy:0,hp:c.hp,ch:1,alive:true,min:c.hp,tr:[],last:0}})};
+cancelAnimationFrame(raf);startRec();raf=requestAnimationFrame(loop)}
+function burst(px,py,col,k){for(let i=0;i<k;i++){const a=rnd(0,6.283),s=rnd(1,6);G.pa.push({x:px,y:py,vx:Math.cos(a)*s,vy:Math.sin(a)*s,l:1,c:col})}}
+function norm(b){const m=Math.hypot(b.vx,b.vy)||1;b.vx*=G.c.spd/m;b.vy*=G.c.spd/m}
+function step(dt){const B=G.b.filter(b=>b.alive);
+B.forEach(b=>{b.x+=b.vx*dt;b.y+=b.vy*dt;b.tr.push([b.x,b.y]);if(b.tr.length>14)b.tr.shift();
+const dx=b.x-R,dy=b.y-R,d=Math.hypot(dx,dy);
+if(d+BR>R-4){const nx=dx/d,ny=dy/d,dot=b.vx*nx+b.vy*ny;if(dot>0){b.vx-=2*dot*nx;b.vy-=2*dot*ny;b.vx+=rnd(-.3,.3);b.vy+=rnd(-.3,.3);norm(b)}
+b.x=R+nx*(R-4-BR);b.y=R+ny*(R-4-BR);b.ch=Math.min(G.c.lim,b.ch+1);burst(R+nx*(R-4),R+ny*(R-4),b.color,3);
+const now=performance.now();if(now-G.lt>25){G.lt=now;tap()}}});
+for(let k in G.cd)if(G.cd[k]>0)G.cd[k]-=dt;
+for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++){const a=B[i],b=B[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+if(d<BR*2&&d>0){const nx=dx/d,ny=dy/d,ov=BR*2-d;a.x-=nx*ov/2;a.y-=ny*ov/2;b.x+=nx*ov/2;b.y+=ny*ov/2;
+const vr=(a.vx-b.vx)*nx+(a.vy-b.vy)*ny;if(vr>0){a.vx-=vr*nx;a.vy-=vr*ny;b.vx+=vr*nx;b.vy+=vr*ny;norm(a);norm(b)}
+const key=a.i+'-'+b.i;if((G.cd[key]||0)<=0){G.cd[key]=15;hit(a,b)}}}}
+function hit(a,b){const da=a.ch,db=b.ch;a.ch=1;b.ch=1;a.hp-=db;b.hp-=da;
+if(a.hp<=0&&b.hp<=0){if(da>=db)b.hp=0,a.hp=1;else a.hp=0,b.hp=1}
+[[a,db],[b,da]].forEach(([v,dm])=>{v.min=Math.min(v.min,Math.max(v.hp,0));G.fl.push({x:v.x,y:v.y-30,t:0,s:'-'+dm,c:v.color});burst(v.x,v.y,v.color,14);if(v.hp<=0){v.hp=0;v.alive=false;burst(v.x,v.y,'#fff',50)}});
+G.pa.push({ring:1,x:(a.x+b.x)/2,y:(a.y+b.y)/2,l:1});a.last=da;b.last=db;
+hitSnd(balls[a.i],a.i,da);hitSnd(balls[b.i],b.i,db);
+const al=G.b.filter(v=>v.alive);if(al.length<=1&&!G.over){G.over=true;const w=al[0]||(da>=db?a:b);G.win=w;G.wd=w.last||0;setTimeout(win,700)}}
+function win(){G.ph='win';G.wAt=performance.now();for(let i=0;i<130;i++)G.cf.push({x:rnd(0,CW),y:rnd(-G.CH,0),vx:rnd(-1,1),vy:rnd(2,5),r:rnd(0,6),vr:rnd(-.2,.2),c:COL[i%6],w:rnd(6,11),h:rnd(10,16)});
+const wb=balls[G.win.i].wbuf;G.hold=Math.min(16000,Math.max(5500,wb?wb.duration*1000+800:0));wb?playBuf(wb):fanfare()}
+function loop(now){const dt=Math.min(2.5,(now-G.last)/16.67);G.last=now;upd(now,dt);draw(now);raf=requestAnimationFrame(loop)}
+function upd(now,dt){
+if(G.ph==='count'){const e=(now-G.t0)/1000,sec=Math.floor(e);if(sec<3&&sec>G.bp){G.bp=sec;tone(660,.18,'square',.18)}
+const k=bounce(Math.min(1,e/2.4));G.b.forEach(b=>{const r=b.r0+(b.r1-b.r0)*k;b.x=R+Math.cos(b.th)*r;b.y=R+Math.sin(b.th)*r});
+if(e>=3){G.ph='fight';G.go=now;tone(1046,.4,'triangle',.25);tone(523,.4,'square',.08);G.b.forEach(b=>{const a=b.th+Math.PI+rnd(-.6,.6);b.vx=Math.cos(a)*G.c.spd;b.vy=Math.sin(a)*G.c.spd})}}
+else if(G.ph==='fight')step(dt);
+if(G.ph==='win'){G.cf.forEach(f=>{f.x+=f.vx;f.y+=f.vy;f.r+=f.vr;if(f.y>G.CH+20)f.y=-20});if(now-G.wAt>G.hold&&!G.stopped){G.stopped=true;stopRec()}}}
+function draw(now){const{CW:w,CH:h}=G;
+let g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#0b0d24');g.addColorStop(1,'#04050d');x.fillStyle=g;x.fillRect(0,0,w,h);
+[[0,G.b[0]],[w,G.b[1]]].forEach(([px,b])=>{const r=x.createRadialGradient(px,h*.35,0,px,h*.35,520);r.addColorStop(0,b.color+'55');r.addColorStop(1,b.color+'00');x.fillStyle=r;x.fillRect(0,0,w,h)});
+x.save();if('letterSpacing'in x)x.letterSpacing='4px';T(G.txt.k,w/2,38+G.oy,'700 14px Poppins,sans-serif','#a9b0d0');x.restore();
+const full=G.seg.map(s=>s.t).join(''),px=fit(full,60,'italic 800',w-50);x.font=`italic 800 ${px}px Poppins,sans-serif`;x.textAlign='left';
+let sx=(w-x.measureText(full).width)/2;G.seg.forEach(s=>{x.fillStyle=s.c;x.shadowColor=s.g?s.c:'transparent';x.shadowBlur=s.g?24:0;x.fillText(s.t,sx,92+G.oy);sx+=x.measureText(s.t).width});x.shadowBlur=0;
+T(G.txt.a,w/2,142+G.oy,'700 21px Poppins,sans-serif','#fff');T(G.txt.b,w/2,172+G.oy,'700 19px Poppins,sans-serif','#ffc83d');
+G.b.forEach((b,i)=>{const cx=16+(i%G.cols)*(G.cw+12),cy=G.hy+Math.floor(i/G.cols)*(G.ch+12);x.save();x.globalAlpha=b.alive?1:.45;
+x.fillStyle='rgba(255,255,255,.08)';x.strokeStyle=b.color+'88';x.lineWidth=2;x.beginPath();x.roundRect(cx,cy,G.cw,G.ch,14);x.fill();x.stroke();
+av(b,cx+28,cy+27,15);x.font='700 17px Poppins,sans-serif';x.textAlign='left';x.fillStyle='#fff';x.fillText(trunc(b.name,G.cw-120),cx+52,cy+27);
+x.textAlign='right';x.font='800 20px Poppins,sans-serif';x.fillText(Math.max(0,Math.round(b.hp)),cx+G.cw-12,cy+27);
+x.fillStyle='rgba(0,0,0,.5)';x.beginPath();x.roundRect(cx+12,cy+46,G.cw-24,10,5);x.fill();const bw=(G.cw-24)*Math.max(0,b.hp/G.c.hp);if(bw>1){x.fillStyle=b.color;x.beginPath();x.roundRect(cx+12,cy+46,bw,10,5);x.fill()}
+T(b.alive?'CHARGE '+b.ch:'DEFEATED',cx+G.cw/2,cy+66,'700 11px Poppins,sans-serif',b.ch>=G.c.lim?'#ffc83d':'#a9b0d0');x.restore()});
+/* arena */
+x.save();x.beginPath();x.rect(24,G.aT-16,672,672);x.clip();x.translate(40,G.aT);x.scale(S,S);
+x.save();x.shadowColor='#8a7bff';x.shadowBlur=24;x.strokeStyle='rgba(235,230,255,.9)';x.lineWidth=3;x.beginPath();x.arc(R,R,R-3,0,6.283);x.stroke();x.restore();
+x.fillStyle='rgba(10,12,34,.55)';x.beginPath();x.arc(R,R,R-4,0,6.283);x.fill();
+G.b.forEach(b=>{if(!b.alive)return;
+x.save();x.lineCap='round';b.tr.forEach((p,k)=>{x.strokeStyle=b.color;x.globalAlpha=k/b.tr.length*.4;x.lineWidth=BR*1.5*k/b.tr.length;x.beginPath();x.moveTo(p[0],p[1]);const q=b.tr[k+1]||[b.x,b.y];x.lineTo(q[0],q[1]);x.stroke()});x.restore();
+x.save();x.shadowColor=b.color;x.shadowBlur=22;x.beginPath();x.arc(b.x,b.y,BR,0,6.283);x.fillStyle=b.color;x.fill();x.restore();av(b,b.x,b.y,BR);
+const hot=b.ch>=G.c.lim*.9||b.ch>=40,tx=String(b.ch),bw=Math.max(22,tx.length*11+12);x.fillStyle='rgba(0,0,0,.75)';x.strokeStyle=hot?'#ffc83d':'#fff';x.lineWidth=1.5;x.beginPath();x.roundRect(b.x-bw/2,b.y-BR-24,bw,18,9);x.fill();x.stroke();T(tx,b.x,b.y-BR-14,'700 12px Poppins,sans-serif',hot?'#ffc83d':'#fff')});
+G.pa=G.pa.filter(p=>{p.l-=p.ring?.03:.025;if(p.l<=0)return false;if(p.ring){x.strokeStyle=`rgba(255,255,255,${p.l})`;x.lineWidth=3;x.beginPath();x.arc(p.x,p.y,(1-p.l)*70+10,0,6.283);x.stroke()}else{p.x+=p.vx;p.y+=p.vy;x.globalAlpha=p.l;x.fillStyle=p.c;x.fillRect(p.x,p.y,3,3);x.globalAlpha=1}return true});
+G.fl=G.fl.filter(f=>{f.t+=1;if(f.t>50)return false;x.globalAlpha=1-f.t/50;x.font='800 30px Poppins,sans-serif';x.textAlign='center';x.lineWidth=5;x.strokeStyle=f.c;x.strokeText(f.s,f.x,f.y-f.t*.8);x.fillStyle='#fff';x.fillText(f.s,f.x,f.y-f.t*.8);x.globalAlpha=1;return true});
+if(G.ph==='count'){const e=(now-G.t0)/1000,fr=e%1,k=1.5-.5*(1-Math.pow(1-fr,3));x.save();x.translate(R,R);x.scale(k,k);x.globalAlpha=Math.max(0,1-fr*fr*fr);T(String(3-Math.floor(Math.min(e,2.99))),0,0,'800 150px Poppins,sans-serif','#fff','#8a7bff');x.restore()}
+else if(G.ph==='fight'&&now-G.go<700){const fr=(now-G.go)/700;x.save();x.translate(R,R);x.scale(1+fr*.5,1+fr*.5);x.globalAlpha=1-fr;T('GO!',0,0,'800 110px Poppins,sans-serif','#ffc83d','#ff8a3d');x.restore()}
+x.restore();
+T(G.txt.bot,w/2,G.bY,'700 22px Poppins,sans-serif','#cfd3ee');
+if(G.ph==='win')winScreen(now,w,h)}
+function winScreen(now,w,h){const t=now-G.wAt,a=Math.min(1,t/400),W=G.win,cy=h*.42,hp=G.c.hp;
+x.save();x.globalAlpha=a*.88;x.fillStyle='#05060f';x.fillRect(0,0,w,h);x.globalAlpha=a;
+const rg=x.createRadialGradient(w/2,cy,20,w/2,cy,520);rg.addColorStop(0,'rgba(255,200,60,.45)');rg.addColorStop(1,'rgba(255,200,60,0)');x.fillStyle=rg;
+for(let k=0;k<18;k++){const s=t/5000+k*Math.PI/9;x.beginPath();x.moveTo(w/2,cy);x.arc(w/2,cy,900,s,s+.2);x.closePath();x.fill()}
+const sc=.6+.4*Math.min(1,bounce(Math.min(1,t/600)));x.translate(w/2,cy);x.scale(sc,sc);x.translate(-w/2,-cy);
+x.shadowColor=W.color;x.shadowBlur=40;av(W,w/2,cy,100);x.shadowBlur=0;
+const fs=fit(W.name,64,'italic 800',w-60);T(W.name,w/2,cy+165,`italic 800 ${fs}px Poppins,sans-serif`,'#fff',W.color);
+T('WINS!',w/2,cy+232,'italic 800 58px Poppins,sans-serif','#ffc83d','#ff8a3d');
+T(W.min<hp*.25?'EPIC COMEBACK!':W.hp>=hp?'FLAWLESS VICTORY!':'VICTORY!',w/2,cy+285,'800 28px Poppins,sans-serif','#ff8a3d');
+T(`${G.wd} DAMAGE FINISHER  ·  ${Math.round(W.hp)} HP left`,w/2,cy+325,'700 22px Poppins,sans-serif','#fff');
+T(G.txt.wf,w/2,cy+368,'700 19px Poppins,sans-serif','#a9b0d0');x.restore();
+G.cf.forEach(f=>{x.save();x.translate(f.x,f.y);x.rotate(f.r);x.fillStyle=f.c;x.fillRect(-f.w/2,-f.h/2,f.w,f.h);x.restore()})}
+/* ---------- recording (card only: title, HUD, arena; no page controls) ---------- */
+
+/* MediaRecorder files have no duration header, so players/share targets read ~2s. Write the real duration in. */
+async function fixDur(bl,ms){const buf=await bl.arrayBuffer(),u=new Uint8Array(buf),t=bl.type||'';
+if(t.includes('webm')){const L=b=>{let l=1,m=128;while(l<=8&&!(b&m)){l++;m>>=1}return l};
+const el=p=>{const il=L(u[p]);let id=0;for(let i=0;i<il;i++)id=id*256+u[p+i];const sl=L(u[p+il]);let sz=u[p+il]&(255>>sl),unk=sz===(255>>sl);for(let i=1;i<sl;i++){sz=sz*256+u[p+il+i];if(u[p+il+i]!==255)unk=false}return{id,at:p,il,hs:il+sl,sz:unk?-1:sz}};
+let p=0,e=el(0);if(e.id!==0x1A45DFA3)return bl;p=e.hs+e.sz;e=el(p);if(e.id!==0x18538067||e.sz!==-1)return bl;p+=e.hs;
+for(let n=0;n<40&&p<u.length;n++){e=el(p);if(e.id===0x1549A966){let q=e.at+e.hs;const end=q+e.sz;while(q<end){const c=el(q);if(c.id===0x4489)return bl;if(c.sz<0)break;q=c.at+c.hs+c.sz}
+const dur=new Uint8Array(11);dur.set([0x44,0x89,0x88]);new DataView(dur.buffer).setFloat64(3,ms,false);
+let v=e.sz+11;const s8=new Uint8Array(8);s8[0]=1;for(let i=7;i>=1;i--){s8[i]=v%256;v=Math.floor(v/256)}
+return new Blob([u.subarray(0,e.at+e.il),s8,u.subarray(e.at+e.hs,e.at+e.hs+e.sz),dur,u.subarray(e.at+e.hs+e.sz)],{type:t})}
+if(e.sz<0)break;p+=e.hs+e.sz}return bl}
+if(t.includes('mp4')){const dv=new DataView(buf),lim=Math.min(u.length-40,1<<17),is=(i,s)=>u[i]===s.charCodeAt(0)&&u[i+1]===s.charCodeAt(1)&&u[i+2]===s.charCodeAt(2)&&u[i+3]===s.charCodeAt(3);
+const w64=(o,d)=>{dv.setUint32(o,Math.floor(d/4294967296));dv.setUint32(o+4,d>>>0)};let mt=1000;
+for(let i=4;i<lim;i++){const v=u[i+4];
+if(is(i,'mvhd')){mt=dv.getUint32(i+(v?24:16));const d=Math.round(ms/1000*mt);v?w64(i+28,d):dv.setUint32(i+20,d)}
+else if(is(i,'tkhd')){const d=Math.round(ms/1000*mt);v?w64(i+32,d):dv.setUint32(i+24,d)}
+else if(is(i,'mdhd')){const ts=dv.getUint32(i+(v?24:16)),d=Math.round(ms/1000*ts);v?w64(i+28,d):dv.setUint32(i+20,d)}}
+return new Blob([buf],{type:t})}
+return bl}
+function startRec(){const st=$('#rs');if(!$('#rec').checked||!window.MediaRecorder){st.textContent=$('#rec').checked?'Recording is not supported in this browser.':'';return}
+try{const ts=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'],mt=ts.find(t=>MediaRecorder.isTypeSupported(t))||'';
+ext=mt.includes('mp4')?'mp4':'webm';const ch=[],r=new MediaRecorder(new MediaStream([...cv.captureStream(60).getVideoTracks(),...MD.stream.getAudioTracks()]),mt?{mimeType:mt,videoBitsPerSecond:4e6}:{});
+r.ondataavailable=e=>e.data.size&&ch.push(e.data);
+r.onstop=async()=>{if(r.discard)return;const dur=(r.t1||performance.now())-r.t0;let b=new Blob(ch,{type:r.mimeType||'video/webm'});try{b=await fixDur(b,dur)}catch(e){}blob=b;$('#dl').hidden=false;st.textContent='Recording ready. Saving…';saveVideo(true)};
+r.t0=performance.now();r.start(500);rec=r;st.textContent='● Recording the battle card…'}catch(e){st.textContent='Could not start recording.'}}
+function stopRec(discard){if(rec&&rec.state!=='inactive'){rec.discard=!!discard;rec.t1=performance.now();rec.stop()}if(discard){$('#rs').textContent=''}}
+async function saveVideo(auto){if(!blob)return;const name=`ball-battle-${Date.now()}.${ext}`,st=$('#rs');
+try{const C=window.Capacitor,P=C&&C.Plugins;
+if(C&&C.isNativePlatform&&C.isNativePlatform()){
+if(!(P&&P.Filesystem))throw new Error('Filesystem plugin missing. Run npm install, then npx cap sync android, and rebuild.');
+const b64=bl=>new Promise((res,rej)=>{const f=new FileReader();f.onload=()=>res(String(f.result).split(',')[1]);f.onerror=()=>rej(new Error('could not read recording'));f.readAsDataURL(bl)});
+const CH=786432;let uri;
+for(let i=0,k=0;i<blob.size;i+=CH,k++){st.textContent='Preparing video… '+Math.round(i/blob.size*100)+'%';const d=await b64(blob.slice(i,i+CH));
+if(k===0){uri=(await P.Filesystem.writeFile({path:name,data:d,directory:'CACHE'})).uri}else{await P.Filesystem.appendFile({path:name,data:d,directory:'CACHE'})}}
+try{const GS=P.GallerySaver||C.registerPlugin('GallerySaver');await GS.save({name,mime:blob.type||'video/mp4'});st.textContent='Saved to your gallery (Movies/BallBattle).'}
+catch(g){if(!P.Share)throw g;await P.Share.share({title:'Ball Battle video',files:[uri]});st.textContent='Gallery save is not set up, so choose where to save the video.'}}
+else{const d=window.claude&&await window.claude.use('downloads');
+if(d){await d.save({filename:name,data:blob});st.textContent='Video saved to your Downloads.'}
+else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();st.textContent='Video saved to your Downloads folder.'}}}
+catch(e){const m=String(e&&e.message||e);st.textContent=(e&&e.code==='declined')||/cancel/i.test(m)?'Not saved. Tap Save video to try again.':'Could not save the video: '+m}}
+$('#dl').onclick=()=>saveVideo(false);
+const edit=()=>{cancelAnimationFrame(raf);stopRec(true);$('#game').style.display='none';$('#setup').style.display='block'};
+$('#start').onclick=begin;$('#re').onclick=begin;$('#back').onclick=edit;
+</script></body></html>
