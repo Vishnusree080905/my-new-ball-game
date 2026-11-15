@@ -1,0 +1,48 @@
+name: Build Ball Battle APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install dependencies & generate Android project
+        run: |
+          npm install
+          npm install @capacitor/android
+          npx cap add android
+
+      - name: Apply custom native gallery plugin
+        run: |
+          node add-gallery-plugin.js
+          npx cap sync android
+
+      - name: Make Gradle executable & Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ball-battle-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
